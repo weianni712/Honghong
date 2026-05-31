@@ -1,6 +1,8 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inspector } from 'react-dev-inspector';
 import { AuthProvider } from '@/lib/auth-context';
+import { ErrorBoundary } from '@/components/error-boundary';
+import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -21,19 +23,34 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: '哄哄你' }],
   generator: 'Coze Code',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000'),
   openGraph: {
     title: '哄哄你 - AI情景模拟练习',
     description:
       '通过AI情景模拟，练习人际冲突中的沟通技巧，提升情商。',
-    url: 'https://example.com',
     siteName: '哄哄你',
     locale: 'zh_CN',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: '哄哄你 - AI情景模拟练习',
+    description: '通过AI情景模拟，练习人际冲突中的沟通技巧，提升情商。',
   },
   robots: {
     index: true,
     follow: true,
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fdf2f8' },
+    { media: '(prefers-color-scheme: dark)', color: '#1a1a2e' },
+  ],
 };
 
 export default function RootLayout({
@@ -44,12 +61,15 @@ export default function RootLayout({
   const isDev = process.env.COZE_PROJECT_ENV === 'DEV';
 
   return (
-    <html lang="zh-CN">
-      <body className={`antialiased`}>
-        <AuthProvider>
-          {isDev && <Inspector />}
-          {children}
-        </AuthProvider>
+    <html lang="zh-CN" suppressHydrationWarning>
+      <body className="antialiased min-h-screen">
+        <ErrorBoundary>
+          <AuthProvider>
+            {isDev && <Inspector />}
+            {children}
+            <Toaster position="top-center" richColors />
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );
