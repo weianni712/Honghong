@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createUser, hashPassword } from '@/storage/database/user';
+import { createUser as createUserSupabase, hashPassword } from '@/storage/database/user';
+import { createUser as createUserDrizzle } from '@/lib/db-operations';
+import bcrypt from 'bcryptjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,12 +46,37 @@ export async function POST(request: NextRequest) {
     // 加密密码
     const hashedPassword = await hashPassword(password);
 
-    // 创建用户
-    const user = await createUser({
-      username,
-      email,
-      password: hashedPassword,
-    });
+    // 尝试使用 Supabase 创建用户
+    let user = null;
+    try {
+      user = await createUserSupabase({
+        username,
+        email,
+        password: hashedPassword,
+      });
+    } catch (supabaseError) {
+      console.log('Supabase 创建用户失败，切换到 Drizzle ORM:', supabaseError);
+    }
+
+    // 如果 Supabase 失败，使用 Drizzle ORM
+    if (!user) {
+      try {
+        const drizzleUser = await createUserDrizzle({
+          username,
+          email,
+          password: hashedPassword,
+        });
+        user = {
+          id: drizzleUser.id,
+          username: drizzleUser.username,
+          email: drizzleUser.email,
+          created_at: drizzleUser.created_at.toISOString(),
+        };
+      } catch (drizzleError) {
+        console.error('Drizzle 创建用户失败:', drizzleError);
+        throw drizzleError;
+      }
+    }
 
     // 返回用户信息（不包含密码）
     return NextResponse.json({

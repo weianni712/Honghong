@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyPassword } from '@/storage/database/user';
+import { getUserPassword } from '@/lib/db-operations';
 import { cookies } from 'next/headers';
+import bcrypt from 'bcryptjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,8 +29,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 验证用户
-    const user = await verifyPassword(email, password);
+    // 验证用户 - 先尝试 Supabase 方式
+    let user = null;
+    try {
+      user = await verifyPassword(email, password);
+    } catch (supabaseError) {
+      console.log('Supabase 验证失败，切换到 Drizzle ORM:', supabaseError);
+    }
+
+    // 如果 Supabase 验证失败，尝试 Drizzle ORM 方式
+    if (!user) {
+      try {
+        const userWithPassword = await getUserPassword(email);
+        if (userWithPassword) {
+          const isValid = await bcrypt.compare(password, userWithPassword.password);
+          if (isValid) {
+            // 从 Drizzle 获取完整用户信息
+            const { getUserById } = await import('@/lib/db-operations');
+            const drizzleUser = await getUserById(userWithPassword.id);
+            if (drizzleUser) {
+              user = {
+                id: drizzleUser.id,
+                username: drizzleUser.username,
+                email: drizzleUser.email,
+                created_at: drizzleUser.created_at.toISOString(),
+              };
+            }
+          }
+        }
+      } catch (drizzleError) {
+        console.error('Drizzle 验证失败:', drizzleError);
+      }
+    }
 
     if (!user) {
       return NextResponse.json(
